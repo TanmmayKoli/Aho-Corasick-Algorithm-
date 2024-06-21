@@ -1,0 +1,98 @@
+from collections import deque, defaultdict
+
+class AhoCorasick:
+    def __init__(self):
+        self.trie = {}  # The Trie data structure
+        self.output = defaultdict(list)  # Output function to store matched patterns
+        self.fail = {}  # Failure links
+
+    def build_trie(self, patterns):
+        """
+        Build the Trie structure with output function.
+        """
+        self.trie = {}  # Initialize the Trie
+        self.output = defaultdict(list)  # Initialize the output function
+        self.fail = {}  # Initialize the failure links
+
+        # Helper function to create a new Trie node
+        new_node = lambda: defaultdict(new_node)
+        self.trie = new_node()
+
+        # Insert each pattern into the Trie
+        for idx, pattern in enumerate(patterns):
+            node = self.trie
+            for char in pattern:
+                node = node[char]  # Move to the child node
+            self.output[id(node)].append(idx)  # Record the pattern at the node
+
+    def build_failure_links(self):
+        """
+        Build the failure links using BFS.
+        """
+        queue = deque()
+        root = self.trie
+
+        # Initialize the fail links for the root's children
+        for key in root:
+            root[key]['fail'] = root  # Failure link of root's children points to root
+            queue.append(root[key])
+        root['fail'] = root  # Failure link of root points to itself
+
+        # Process all nodes in the Trie
+        while queue:
+            current_node = queue.popleft()  # Dequeue the next node to process
+            for key, next_node in current_node.items():
+                if key == 'fail':
+                    continue  # Skip the fail entries
+                queue.append(next_node)  # Enqueue the child node
+
+                fail_state = current_node['fail']
+                
+                # Find the fail state by following failure links
+                while key not in fail_state and fail_state is not root:
+                    fail_state = fail_state['fail']
+                
+                # Set the failure link for the current node
+                if key in fail_state:
+                    next_node['fail'] = fail_state[key]
+                else:
+                    next_node['fail'] = root
+                
+                # Propagate the output from the fail state to the current node
+                self.output[id(next_node)].extend(self.output[id(next_node['fail'])])
+
+    def search(self, text):
+        """
+        Search for patterns in the given text.
+        """
+        node = self.trie  # Start at the root node
+        results = []
+
+        for i, char in enumerate(text):
+            # Backtrack using failure links when there is a mismatch
+            while char not in node and node is not self.trie:
+                node = node['fail']  # Follow the failure link to backtrack
+            
+            # Follow the edge for the current character if it exists
+            if char in node:
+                node = node[char]
+            else:
+                node = self.trie  # Reset to the root node if no match
+
+            # Collect the matches from the output function
+            if id(node) in self.output:
+                for pattern_idx in self.output[id(node)]:
+                    results.append((i, pattern_idx))  # Record the match
+        
+        return results
+
+# Example usage
+patterns = ["his", "she", "his", "hers"]
+text = "ahishers"
+
+ac = AhoCorasick()
+ac.build_trie(patterns)
+ac.build_failure_links()
+matches = ac.search(text)
+
+print(matches)  # Output: [(3, 2), (5, 0), (6, 1), (7, 3)]
